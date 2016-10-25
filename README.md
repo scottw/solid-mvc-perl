@@ -6,6 +6,10 @@ The premise of the application is a facilities maintenance tracking application,
 
 Other aspects of the application such as updating tickets are left as an exercise.
 
+## A note about the implementations
+
+I have included all of the model code necessary to run each example inside the application itself. These models would normally be broken out as separate files and then included dynamically at runtime or installed as part of a build process. Anytime you see an open curly-brace followed by a package declaration, that would be otherwise put into its own file and loaded using `require`.
+
 ## [maint-v1](maint-v1)
 
 This is a naïve implementation that violates all SOLID principles.
