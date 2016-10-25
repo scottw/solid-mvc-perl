@@ -1,0 +1,60 @@
+#!/usr/bin/env perl
+use Mojolicious::Lite;
+
+## in which we conflate the controller and model
+use DBI;
+
+my $dbh = DBI->connect("dbi:SQLite:dbname=:memory","","");
+$dbh->do(<<_SQL_);
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket INTEGER PRIMARY KEY,
+  building TEXT,
+  item TEXT,
+  id TEXT,
+  description TEXT,
+  expectation TEXT
+)
+_SQL_
+
+get '/tickets/:ticket_id' => sub {
+    my $c = shift;
+
+    my $sth = $dbh->prepare(qq!SELECT * FROM tickets WHERE ticket = ?!);
+    $sth->execute($c->param('ticket_id'));
+    my $ticket = $sth->fetchrow_hashref;
+    $sth->finish;
+
+    unless ($ticket->{ticket}) {
+        $c->render(json => { error => "Ticket not found" }, status => 404);
+        return;
+    }
+
+    $c->render(json => $ticket, status => 200);
+};
+
+# curl --request POST http://localhost:3000/tickets -d '{"building":"H","item":"coke","description":"out of "}'
+post '/tickets' => sub {
+    my $c   = shift;
+    my $req = $c->req->json;
+
+    my @fields = qw/building item id description expectation/;
+    my $fields = join ',' => @fields;
+    my $places = join ',' => ('?') x @fields;
+
+    my $sth = $dbh->prepare(qq!INSERT INTO tickets ($fields) VALUES ($places)!);
+    $sth->execute(@{$req}{@fields});
+
+    if ($dbh->errstr) {
+        $c->app->log->error($dbh->errstr);
+        $c->render(json => { error => "Unable to create ticket" }, status => 400);
+        return;
+    }
+
+    my $ticket_id = $dbh->last_insert_id(undef, undef, "tickets", "ticket");
+
+    $c->render(
+        json   => { message => "Request received", ticket => $ticket_id, url => $c->url_for("/tickets/$ticket_id")->to_abs },
+        status => 201);
+};
+
+app->start;

@@ -1,0 +1,123 @@
+#!/usr/bin/env perl
+use Mojolicious::Lite;
+
+## in which we confuse data modeling with domain modeling. We expose
+## not just the data fields (which is not a big deal--easily
+## remapped), but all the mechanisms necessary to work with those
+## fields at the level of their implementation. Further, we inject our
+## app (c) into the model and force the model to do our job for us.
+
+{
+    package DB::SQLite;
+    use Mojo::Base -base;
+    use DBI;
+
+    my $dbh = DBI->connect("dbi:SQLite:dbname=tickets.db","","",
+                           { RaiseError => 1, AutoCommit => 0 });
+
+    $dbh->do(<<_SQL_);
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket INTEGER PRIMARY KEY,
+  building TEXT,
+  item TEXT,
+  id TEXT,
+  description TEXT,
+  expectation TEXT
+);
+_SQL_
+
+    ## 1) our interface exposes the db implementation: table name,
+    ## fields, values
+    sub insert {
+        my $m = shift;
+        my $args = shift;
+
+        my $table  = $args->{table};
+        my $key_f  = $args->{key};
+        my $fields = $args->{fields};
+        my $values = $args->{values};
+
+        my $f = join ', ' => @$fields;
+        my $p = join ', ' => ('?') x @$values;
+        my $sql = qq!INSERT INTO $table ($f) VALUES ($p)!;
+
+        my $sth = $dbh->prepare($sql);
+        eval {
+            $sth->execute(@$values);
+            $dbh->commit;
+        };
+
+        if ($@) {
+            $dbh->rollback;
+
+            ## 2) we also have injected the interface into our model,
+            ## just to throw an error
+            $args->{c}->render(json => {error => "Error inserting row: $@"},
+                               status => 500);
+            return;
+        }
+
+        return $dbh->last_insert_id(undef, undef, $table, $key_f);
+    }
+
+    sub view {
+        my $m = shift;
+        my $args = shift;
+
+        my $table = $args->{table};
+        my @where = @{$args->{where}};
+        my @value = @{$args->{value}};
+        my $where = join ' AND ' => map { "$_ = ?" } @where;
+        my $sql = qq!SELECT * FROM $table WHERE $where!;
+
+        my $sth = $dbh->prepare(qq!SELECT * FROM $table WHERE $where!);
+        $sth->execute(@value);
+        my $ticket = $sth->fetchrow_hashref;
+        $sth->finish;
+
+        unless ($ticket->{ticket}) {
+            $args->{c}->render(json => {error => "Ticket not found"},
+                               status => 404);
+            return;
+        }
+
+        return $ticket;
+    }
+}
+
+## 3) we have "abstracted" our database, but from the perspective *of*
+## the database. We haven't really made a true abstraction, we just
+## factored out some of the boilerplate of dealing with an RDBMS (SQL,
+## transactions, table/field mappings, etc.).
+my $dbh = DB::SQLite->new;
+helper dbh => sub { $dbh };
+
+get '/tickets/:ticket_id' => sub {
+    my $c = shift;
+
+    my $ticket = $c->dbh->view({c     => $c,  ## wat
+                                table => 'tickets',
+                                where => [qw/ticket/],
+                                value => [$c->param('ticket_id')]})
+      or return;
+
+    $c->render(json => $ticket, status => 200);
+};
+
+post '/tickets' => sub {
+    my $c   = shift;
+    my $req = $c->req->json;
+
+    my $ticket_id = $c->dbh->insert({c      => $c,  ## again?
+                                     table  => 'tickets',
+                                     key    => 'ticket',
+                                     fields => [qw/building item id description expectation/],
+                                     values => [@{$req}{qw/building item id description expectation/}]})
+      or return;
+
+    $c->render(
+        json   => { message => "Request received", ticket => $ticket_id, url => $c->url_for("/tickets/$ticket_id")->to_abs },
+        status => 201);
+};
+
+app->start;

@@ -1,2 +1,4 @@
 .perl-version
 .carmel
+tickets/
+tickets.db

@@ -1,0 +1,277 @@
+#!/usr/bin/env perl
+use Mojolicious::Lite;
+
+## 1) we define an error class for passing errors
+{
+    package Errr;
+    use overload
+      bool     => sub { $_[0]->bool },
+      '""'     => sub { $_[0]->error },
+      fallback => 1;
+
+    sub new {
+        my $class = shift;
+        my %args  = ();
+
+        if (ref $_[0] eq 'HASH') {
+            %args = %{$_[0]};
+        }
+
+        else {
+            $args{error} = shift;
+        }
+
+        bless { bool => 0, %args }, $class;
+    }
+
+    sub bool  { $_[0]->{bool} }
+    sub error { $_[0]->{error} }
+}
+
+## 2) for fun, we now implement 4 models that conform to the "ticket"
+## interface; each of them also has an "error" attribute and "config"
+## attribute, which are set via dependency injection.
+{
+    package Mocky::Mockerson;
+    use Mojo::Base -base;
+
+    has error  => undef;
+    has config => undef;
+
+    sub create_ticket { int rand(89_999) + 10000 }
+    sub find_ticket { { building => "G", item => "Scott's door", description => "brown" } }
+}
+
+{
+    package In::Memory;
+    use Mojo::Base -base;
+
+    has error  => undef;
+    has config => undef;
+    has first_ticket => 0;
+    has tickets => sub { state $tickets = {}; $tickets };
+
+    sub init {
+        my $m = shift;
+
+        $m->first_ticket($m->config->{first_ticket});
+    }
+
+    sub _next_id { state $last_id = shift->first_ticket; $last_id++ }
+
+    sub create_ticket {
+        my $m  = shift;
+        my $id = $m->_next_id;
+        $m->tickets->{$id} = shift;
+
+        return $id;
+    }
+
+    sub find_ticket {
+        my $m  = shift;
+        my $id = shift;
+
+        if (! exists $m->tickets->{$id}) {
+            $m->error({error => "Ticket not found", http_code => 404});
+            return;
+        }
+
+        return $m->tickets->{$id};
+    }
+}
+
+{
+    package Flat::File;
+    use Mojo::Base -base;
+
+    has error  => undef;
+    has config => undef;
+    has first_ticket => undef;
+    has ticket_base  => undef;
+
+    sub init {
+        my $m = shift;
+
+        $m->first_ticket($m->config->{first_ticket});
+        $m->ticket_base($m->config->{base_dir});
+    }
+
+    ## NOTE: not thread safe
+    sub _next_id {
+        my $m = shift;
+
+        mkdir $m->ticket_base unless -e $m->ticket_base;
+
+        opendir my $dh => $m->ticket_base or die "Unable to open ticket base\n";
+        my @tickets = sort grep { !/^\./ } readdir $dh;
+        closedir $dh;
+
+        my $next_id = $m->first_ticket + scalar @tickets;
+        open my $fh, ">", $m->ticket_base . '/' . $next_id;
+        close $fh;
+
+        return $next_id;
+    }
+
+    ## NOTE: not thread safe
+    sub create_ticket {
+        my $m      = shift;
+        my $id     = $m->_next_id;
+        my $ticket = shift;
+
+        open my $fh, ">", $m->ticket_base . '/' . $id
+          or do {
+              $m->error({error => "Unable to create ticket: $!"});
+              return;
+          };
+        print $fh Mojo::JSON::encode_json $ticket;
+        close $fh;
+
+        return $id;
+    }
+
+    sub find_ticket {
+        my $m  = shift;
+        my $id = shift;
+
+        open my $fh, "<", $m->ticket_base . '/' . $id
+          or do {
+              $m->error({error => "Ticket not found", http_code => 404});
+              return;
+          };
+        my $json = <$fh>;
+        chomp $json;
+        close $fh;
+
+        return Mojo::JSON::decode_json $json;
+    }
+}
+
+{
+    package DB::SQLite;
+    use Mojo::Base -base;
+    use DBI;
+
+    has error  => undef;
+    has config => undef;
+    has dbh    => undef;
+
+    sub init {
+        my $m = shift;
+
+        $m->dbh(DBI->connect("dbi:SQLite:dbname=" . $m->config->{db_name}, "", "",
+                             { RaiseError => 1, AutoCommit => 0 }));
+
+        $m->dbh->do(<<_SQL_);
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket INTEGER PRIMARY KEY,
+  building TEXT,
+  item TEXT,
+  id TEXT,
+  description TEXT,
+  expectation TEXT
+);
+_SQL_
+    }
+
+    sub create_ticket {
+        my $m = shift;
+        my $ticket = shift;
+        my $err = shift // {};
+
+        my @fields = qw/building item id description expectation/;
+        my $fields = join ',' => @fields;
+        my $places = join ',' => ('?') x @fields;
+
+        my $sth = $m->dbh->prepare(qq!INSERT INTO tickets ($fields) VALUES ($places)!);
+        eval {
+            $sth->execute(@{$ticket}{@fields});
+            $m->dbh->commit;
+        };
+
+        if ($@) {
+            $m->dbh->rollback;
+            $m->error({error => "Error creating ticket: $@", http_code => 500});
+            return;
+        }
+
+        if ($m->dbh->errstr) {
+            $m->error({error => "Unable to create ticket", http_code => 400});
+            return;
+        }
+
+        return $m->dbh->last_insert_id(undef, undef, "tickets", "ticket");
+    }
+
+    sub find_ticket {
+        my $m = shift;
+        my $id = shift;
+
+        my $sth = $m->dbh->prepare(qq!SELECT * FROM tickets WHERE ticket = ?!);
+        $sth->execute($id);
+        my $ticket = $sth->fetchrow_hashref;
+        $sth->finish;
+
+        unless ($ticket->{ticket}) {
+            $m->error({error => "Ticket not found", http_code => 404});
+            return;
+        }
+
+        return $ticket;
+    }
+}
+
+my $config = plugin Config => { file => 'maint.conf' };
+
+## if we had separate files for our models, we would load them
+## dynamically, like this:
+# eval "require $config->{model}";
+# die $@ if $@;
+
+my $model = $config->{model}->new(
+    error  => Errr->new,
+    config => $config
+);
+# my $model = Mocky::Mockerson->new(error => Errr->new, config => $config);
+# my $model = In::Memory->new(error => Errr->new, config => $config);
+# my $model = Flat::File->new(config => $config);
+# my $model = DB::SQLite->new(config => $config);
+
+$model->init if $model->can('init');
+
+helper model => sub { $model };
+
+get '/tickets/:ticket_id' => sub {
+    my $c = shift;
+
+    my $ticket = $c->model->find_ticket($c->param('ticket_id'))
+      or do {
+          my $err = $c->model->error->{error};
+          my $code = $c->model->error->{http_code} // 404;
+
+          $c->render(json => { error => $err }, status => $code);
+          return;
+      };
+
+    $c->render(json => $ticket, status => 200);
+};
+
+post '/tickets' => sub {
+    my $c   = shift;
+    my $req = $c->req->json;    ## FIXME: validate inputs
+
+    my $ticket_id = $c->model->create_ticket($req)
+      or do {
+          my $err = $c->model->error->{error};
+          my $code = $c->model->error->{http_code} // 500;
+
+          $c->render(json => { error => $err }, status => $code);
+          return;
+      };
+
+    $c->render(
+        json   => { message => "Request received", ticket => $ticket_id, url => $c->url_for("/tickets/$ticket_id")->to_abs },
+        status => 201);
+};
+
+app->start;

@@ -1,0 +1,138 @@
+#!/usr/bin/env perl
+use Mojolicious::Lite;
+
+{
+    package In::Memory;
+    use Mojo::Base -base;
+
+    my $tickets = {};
+    has tickets => sub { $tickets };
+
+    sub _next_id { state $last_id = 10_000; $last_id++ }
+
+    sub create_ticket {
+        my $m  = shift;
+        my $c  = shift;
+        my $id = $m->_next_id;
+        $m->tickets->{$id} = shift;
+
+        return $id;
+    }
+
+    sub find_ticket {
+        my $m  = shift;
+        my $c  = shift;
+        my $id = shift;
+
+        if (! exists $m->tickets->{$id}) {
+            $c->render(json => {error => "Ticket not found"},
+                       status => 404);
+            return;
+        }
+
+        return $m->tickets->{$id};
+    }
+}
+
+{
+    package DB::SQLite;
+    use Mojo::Base -base;
+    use DBI;
+
+    my $dbh = DBI->connect("dbi:SQLite:dbname=tickets.db","","",
+                           { RaiseError => 1, AutoCommit => 0 });
+
+    $dbh->do(<<_SQL_);
+CREATE TABLE IF NOT EXISTS tickets (
+  ticket INTEGER PRIMARY KEY,
+  building TEXT,
+  item TEXT,
+  id TEXT,
+  description TEXT,
+  expectation TEXT
+);
+_SQL_
+
+    sub create_ticket {
+        my $m = shift;
+        my $c = shift;
+        my $ticket = shift;
+
+        my @fields = qw/building item id description expectation/;
+        my $fields = join ',' => @fields;
+        my $places = join ',' => ('?') x @fields;
+
+        my $sth = $dbh->prepare(qq!INSERT INTO tickets ($fields) VALUES ($places)!);
+        eval {
+            $sth->execute(@{$ticket}{@fields});
+            $dbh->commit;
+        };
+
+        if ($@) {
+            $dbh->rollback;
+            $c->render(json => {error => "Error creating ticket: $@"},
+                       status => 500);
+            return;
+        }
+
+        if ($dbh->errstr) {
+            $c->render(json => {error => "Unable to create ticket"},
+                       status => 400);
+            return;
+        }
+
+        return $dbh->last_insert_id(undef, undef, "tickets", "ticket");
+    }
+
+    sub find_ticket {
+        my $m = shift;
+        my $c = shift;
+        my $id = shift;
+
+        my $sth = $dbh->prepare(qq!SELECT * FROM tickets WHERE ticket = ?!);
+        $sth->execute($id);
+        my $ticket = $sth->fetchrow_hashref;
+        $sth->finish;
+
+        unless ($ticket->{ticket}) {
+            say STDERR "ticket not found";
+            $c->render(json => {error => "Ticket not found"},
+                       status => 404);
+            return;
+        }
+
+        return $ticket;
+    }
+}
+
+# my $model = In::Memory->new;
+my $model = DB::SQLite->new;
+
+helper model => sub { $model };
+
+get '/tickets/:ticket_id' => sub {
+    my $c = shift;
+
+    ## 1) find_ticket() is part of the abstract interface
+    my $ticket = $c->model->find_ticket($c, $c->param('ticket_id'))
+      or return;
+
+    $c->render(json => $ticket, status => 200);
+};
+
+post '/tickets' => sub {
+    my $c   = shift;
+    my $req = $c->req->json;
+
+    ## 2) create_ticket() is another method in the interface. We don't
+    ## use interfaces much in Perl, but other languages support them
+    ## as first class things. Similar to Protocols in Swift.
+    my $ticket_id = $c->model->create_ticket($c, $req)
+      or return;
+
+    $c->render(
+        json   => { message => "Request received", ticket => $ticket_id, url => $c->url_for("/tickets/$ticket_id")->to_abs },
+        status => 201);
+};
+
+app->start;
