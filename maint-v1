@@ -35,7 +35,7 @@ get '/tickets/:ticket_id' => sub {
 # curl --request POST http://localhost:3000/tickets -d '{"building":"H","item":"coke","description":"out of "}'
 post '/tickets' => sub {
     my $c   = shift;
-    my $req = $c->req->json;
+    my $req = $c->req->json;  ## FIXME: should validate inputs!
 
     my @fields = qw/building item id description expectation/;
     my $fields = join ',' => @fields;
