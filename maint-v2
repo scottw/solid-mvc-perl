@@ -7,6 +7,10 @@ use Mojolicious::Lite;
 ## fields at the level of their implementation. Further, we inject our
 ## app (c) into the model and force the model to do our job for us.
 
+## at a future time, we *may* want to leverage this little ORM we've
+## made, but only inside the domain model, once we've figured that
+## out.
+
 {
     package DB::SQLite;
     use Mojo::Base -base;
@@ -85,10 +89,10 @@ _SQL_
     }
 }
 
-## 3) we have "abstracted" our database, but from the perspective *of*
-## the database. We haven't really made a true abstraction, we just
-## factored out some of the boilerplate of dealing with an RDBMS (SQL,
-## transactions, table/field mappings, etc.).
+## 3) we have "abstracted" our database, but from the perspective of
+## the database. We haven't really made a true domain abstraction, we
+## just factored out some of the boilerplate of dealing with an RDBMS
+## (SQL, transactions, table/field mappings, etc.).
 my $dbs = DB::SQLite->new;
 helper db => sub { $dbs };
 
@@ -108,7 +112,7 @@ post '/tickets' => sub {
     my $c   = shift;
     my $req = $c->req->json;
 
-    my $ticket_id = $c->db->insert({c      => $c,  ## again?
+    my $ticket_id = $c->db->insert({c      => $c,  ## still?
                                     table  => 'tickets',
                                     key    => 'ticket',
                                     fields => [qw/building item id description expectation/],

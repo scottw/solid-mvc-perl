@@ -3,7 +3,11 @@ use Mojolicious::Lite;
 
 my $is_test = $ENV{TEST};
 
-## in which we conflate the controller and *two* models
+## in which we conflate the controller and *two* models. This is a
+## step backward almost to the beginning, but helps us observe the
+## common work the models need to do. We also have the benefit of
+## having the application API already designed for us, which colors
+## our perception of the application (in a good way in this case).
 use DBI;
 
 my $dbh = DBI->connect("dbi:SQLite:dbname=:memory","","");
@@ -45,7 +49,6 @@ get '/tickets/:ticket_id' => sub {
     $c->render(json => $ticket, status => 200);
 };
 
-# curl --request POST http://localhost:3000/tickets -d '{"building":"H","item":"coke","description":"out of "}'
 post '/tickets' => sub {
     my $c   = shift;
     my $req = $c->req->json;

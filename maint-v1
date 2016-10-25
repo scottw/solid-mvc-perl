@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 )
 _SQL_
 
+## we expose our data model completely
 get '/tickets/:ticket_id' => sub {
     my $c = shift;
 
@@ -32,7 +33,6 @@ get '/tickets/:ticket_id' => sub {
     $c->render(json => $ticket, status => 200);
 };
 
-# curl --request POST http://localhost:3000/tickets -d '{"building":"H","item":"coke","description":"out of "}'
 post '/tickets' => sub {
     my $c   = shift;
     my $req = $c->req->json;  ## FIXME: should validate inputs!

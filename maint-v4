@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use Mojolicious::Lite;
 
+## we implement two models
 {
     package In::Memory;
     use Mojo::Base -base;
@@ -12,7 +13,7 @@ use Mojolicious::Lite;
 
     sub create_ticket {
         my $m  = shift;
-        my $c  = shift;
+        my $c  = shift;  ## this is a code smell: we violate Single Responsibility this way
         my $id = $m->_next_id;
         $m->tickets->{$id} = shift;
 
@@ -25,6 +26,9 @@ use Mojolicious::Lite;
         my $id = shift;
 
         if (! exists $m->tickets->{$id}) {
+            ## bad: we should throw or use some other way of
+            ## communicating an error, not invoking the application's
+            ## way of communicating with its clients.
             $c->render(json => {error => "Ticket not found"},
                        status => 404);
             return;
@@ -114,6 +118,8 @@ my $model = DB::SQLite->new;
 
 helper model => sub { $model };
 
+## these are tiny controllers, but maybe too tiny. Passing in $c is a
+## code smell.
 get '/tickets/:ticket_id' => sub {
     my $c = shift;
 
