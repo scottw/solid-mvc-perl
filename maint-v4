@@ -53,6 +53,10 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 _SQL_
 
+    sub tickets {
+        ## FIXME
+    }
+
     sub create_ticket {
         my $m = shift;
         my $c = shift;
@@ -113,7 +117,6 @@ helper model => sub { $model };
 get '/tickets/:ticket_id' => sub {
     my $c = shift;
 
-    ## 1) find_ticket() is part of the abstract interface
     my $ticket = $c->model->find_ticket($c, $c->param('ticket_id'))
       or return;
 
@@ -124,9 +127,6 @@ post '/tickets' => sub {
     my $c   = shift;
     my $req = $c->req->json;
 
-    ## 2) create_ticket() is another method in the interface. We don't
-    ## use interfaces much in Perl, but other languages support them
-    ## as first class things. Similar to Protocols in Swift.
     my $ticket_id = $c->model->create_ticket($c, $req)
       or return;
 

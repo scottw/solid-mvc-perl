@@ -102,6 +102,10 @@ use Mojolicious::Lite;
         return $next_id;
     }
 
+    sub tickets {
+        ## FIXME
+    }
+
     ## NOTE: not thread safe
     sub create_ticket {
         my $m      = shift;
@@ -161,6 +165,10 @@ CREATE TABLE IF NOT EXISTS tickets (
   expectation TEXT
 );
 _SQL_
+    }
+
+    sub tickets {
+        ## FIXME
     }
 
     sub create_ticket {
