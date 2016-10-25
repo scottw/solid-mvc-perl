@@ -28,20 +28,9 @@ use Mojolicious::Lite;
     sub error { $_[0]->{error} }
 }
 
-## 2) for fun, we now implement 4 models that conform to the "ticket"
+## 2) for fun, we now implement 3 models that conform to the "ticket"
 ## interface; each of them also has an "error" attribute and "config"
 ## attribute, which are set via dependency injection.
-{
-    package Mocky::Mockerson;
-    use Mojo::Base -base;
-
-    has error  => undef;
-    has config => undef;
-
-    sub create_ticket { int rand(89_999) + 10000 }
-    sub find_ticket { { building => "G", item => "Scott's door", description => "brown" } }
-}
-
 {
     package In::Memory;
     use Mojo::Base -base;
@@ -228,16 +217,16 @@ my $config = plugin Config => { file => 'maint.conf' };
 # eval "require $config->{model}";
 # die $@ if $@;
 
-my $model = $config->{model}->new(
-    error  => Errr->new,
-    config => $config
-);
-# my $model = Mocky::Mockerson->new(error => Errr->new, config => $config);
 # my $model = In::Memory->new(error => Errr->new, config => $config);
 # my $model = Flat::File->new(config => $config);
 # my $model = DB::SQLite->new(config => $config);
 
-$model->init if $model->can('init');
+my $model = $config->{model}->new(
+    error  => Errr->new,
+    config => $config
+);
+
+$model->init;
 
 helper model => sub { $model };
 
