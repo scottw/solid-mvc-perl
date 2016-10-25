@@ -89,16 +89,16 @@ _SQL_
 ## the database. We haven't really made a true abstraction, we just
 ## factored out some of the boilerplate of dealing with an RDBMS (SQL,
 ## transactions, table/field mappings, etc.).
-my $dbh = DB::SQLite->new;
-helper dbh => sub { $dbh };
+my $dbs = DB::SQLite->new;
+helper db => sub { $dbs };
 
 get '/tickets/:ticket_id' => sub {
     my $c = shift;
 
-    my $ticket = $c->dbh->view({c     => $c,  ## wat
-                                table => 'tickets',
-                                where => [qw/ticket/],
-                                value => [$c->param('ticket_id')]})
+    my $ticket = $c->db->view({c     => $c,  ## wat
+                               table => 'tickets',
+                               where => [qw/ticket/],
+                               value => [$c->param('ticket_id')]})
       or return;
 
     $c->render(json => $ticket, status => 200);
@@ -108,11 +108,11 @@ post '/tickets' => sub {
     my $c   = shift;
     my $req = $c->req->json;
 
-    my $ticket_id = $c->dbh->insert({c      => $c,  ## again?
-                                     table  => 'tickets',
-                                     key    => 'ticket',
-                                     fields => [qw/building item id description expectation/],
-                                     values => [@{$req}{qw/building item id description expectation/}]})
+    my $ticket_id = $c->db->insert({c      => $c,  ## again?
+                                    table  => 'tickets',
+                                    key    => 'ticket',
+                                    fields => [qw/building item id description expectation/],
+                                    values => [@{$req}{qw/building item id description expectation/}]})
       or return;
 
     $c->render(
