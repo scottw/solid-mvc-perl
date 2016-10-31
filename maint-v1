@@ -4,7 +4,7 @@ use Mojolicious::Lite;
 ## in which we conflate the controller and model
 use DBI;
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=:memory","","");
+my $dbh = DBI->connect("dbi:SQLite:dbname=:memory:","","");
 $dbh->do(<<_SQL_);
 CREATE TABLE IF NOT EXISTS tickets (
   ticket INTEGER PRIMARY KEY,

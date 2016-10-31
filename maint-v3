@@ -10,7 +10,7 @@ my $is_test = $ENV{TEST};
 ## our perception of the application (in a good way in this case).
 use DBI;
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=:memory","","");
+my $dbh = DBI->connect("dbi:SQLite:dbname=:memory:","","");
 $dbh->do(<<_SQL_);
 CREATE TABLE IF NOT EXISTS tickets (
   ticket INTEGER PRIMARY KEY,
