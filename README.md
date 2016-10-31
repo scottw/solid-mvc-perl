@@ -1,6 +1,6 @@
 # SOLID MVC in Perl
 
-This repository contains supplemental material for a [presentation by the same name](http://scottw.github.io/presentations/solid-mvc-perl/). This presentation discusses [SOLID](http://butunclebob.com/ArticleS.UncleBob.PrinciplesOfOod) software design principles and MVC architecture principles, and a little [domain-driven design](https://www.amazon.com/Domain-Driven-Design-Tackling-Complexity-Software/dp/0321125215) principles in the context of a simple Mojolicious Perl application written in 5 different ways.
+This repository contains supplemental material for a [presentation by the same name](http://scottw.github.io/presentations/solid-mvc-perl/). This presentation discusses [SOLID](http://butunclebob.com/ArticleS.UncleBob.PrinciplesOfOod) software design principles and MVC architecture principles, and a few [domain-driven design](https://www.amazon.com/Domain-Driven-Design-Tackling-Complexity-Software/dp/0321125215) principles in the context of a simple Mojolicious Perl application written in 5 different ways.
 
 The premise of the application is a facilities maintenance tracking application, where a user may submit information about a particular item (e.g., a broken light or squeaky door) to create a ticket. Once a ticket is generated, the ticket can be queried to see the new status.
 
