@@ -50,8 +50,15 @@ use Mojolicious::Lite;
 
     sub create_ticket {
         my $m  = shift;
+        my $ticket = shift;
+
+        unless ($ticket->{building} and $ticket->{item} and $ticket->{description}) {
+            $m->error({error => "Missing building, item, or description", http_code => 400});
+            return;
+        }
+
         my $id = $m->_next_id;
-        $m->tickets->{$id} = shift;
+        $m->tickets->{$id} = $ticket;
 
         return $id;
     }
@@ -111,6 +118,11 @@ use Mojolicious::Lite;
         my $m      = shift;
         my $id     = $m->_next_id;
         my $ticket = shift;
+
+        unless ($ticket->{building} and $ticket->{item} and $ticket->{description}) {
+            $m->error({error => "Missing building, item, or description", http_code => 400});
+            return;
+        }
 
         open my $fh, ">", $m->ticket_base . '/' . $id
           or do {
@@ -175,6 +187,11 @@ _SQL_
         my $m = shift;
         my $ticket = shift;
         my $err = shift // {};
+
+        unless ($ticket->{building} and $ticket->{item} and $ticket->{description}) {
+            $m->error({error => "Missing building, item, or description", http_code => 400});
+            return;
+        }
 
         my @fields = qw/building item id description expectation/;
         my $fields = join ',' => @fields;
