@@ -3,7 +3,6 @@ use Mojo::Base -strict;
 
 use Test::More;
 use Test::Mojo;
-use Data::Dumper;
 
 $ENV{MOJO_MODE} //= 'memory';
 
@@ -16,7 +15,7 @@ my $model = $t->app->model;   ## just a handle to the model chosen by the app
 ##
 ## missing ticket
 ##
-my $ticket = $model->find_ticket(1);
+my $ticket = $model->find_ticket(0);
 is( undef, $ticket, "no ticket found");
 
 like($model->error->{error}, qr(not found)i, "ticket not found");
