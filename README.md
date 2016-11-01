@@ -12,6 +12,8 @@ I have included all of the model code necessary to run each example inside the a
 
 I should also note that this example was meant to be easy to understand, rather than a good candidate to demonstrate these principles. I didn't want the legibility of the software itself to obscure the design principles; the sacrifice, of course, is that you have to withhold judgement of the principles in this particular case.
 
+An [exploded version](https://github.com/scottw/solid-mvc-perl-supplemental) of `maint-v5` is available, which shows how the model code and `Errr` module might be loaded dynamically, rather than inlined.
+
 ## Installing
 
 I use [Carton](https://metacpan.org/release/Carton) or [Carmel](https://metacpan.org/release/Carmel) for build dependencies. I have included a `cpanfile` for your convenience. After install Carmel or Carton, simply:
