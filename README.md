@@ -40,6 +40,8 @@ This is a naïve implementation that violates all SOLID principles.
 
 This implementation starts down the path of an ORM, exposing a decidedly anemic data-centric model to the application, rather than a domain model.
 
+This mini-ORM implementation has SQL injection vulnerabilities. It was meant to illustrate the architectural concept of a DB model, not necessarily serve as an example of good coding practices. See the [supplemental repo](https://github.com/scottw/solid-mvc-perl-supplemental) for a more hardened ORM.
+
 ## [maint-v3](maint-v3)
 
 This implementation has two data models in the controller, but allows us to begin imagining what a domain model may look like.
